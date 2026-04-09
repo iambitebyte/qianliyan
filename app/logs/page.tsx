@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { getBasePath } from '@/lib/utils';
 
 interface FileInfo {
   name: string;
@@ -21,6 +22,7 @@ function LogsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const folderPath = searchParams.get('path') || '';
+  const basePath = getBasePath();
   
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
@@ -100,7 +102,7 @@ function LogsContent() {
 
   const loadFiles = async () => {
     try {
-      const res = await fetch(`/api/files?path=${encodeURIComponent(folderPath)}`);
+      const res = await fetch(`${basePath}/api/files?path=${encodeURIComponent(folderPath)}`);
       const data = await res.json();
       setFiles(data.files || []);
     } catch (err) {
@@ -114,7 +116,7 @@ function LogsContent() {
     if (!selectedFile) return;
 
     try {
-      const res = await fetch(`/api/logs?path=${encodeURIComponent(path.join(folderPath, selectedFile))}`);
+      const res = await fetch(`${basePath}/api/logs?path=${encodeURIComponent(path.join(folderPath, selectedFile))}`);
       const data = await res.json();
       
       const file = files.find(f => f.name === selectedFile);

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getBasePath } from '@/lib/utils';
 
 interface FolderInfo {
   path: string;
@@ -18,6 +19,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
+  const basePath = getBasePath();
 
   useEffect(() => {
     fetchFolders();
@@ -25,7 +27,7 @@ export default function Home() {
 
   const fetchFolders = async () => {
     try {
-      const res = await fetch('/api/folders');
+      const res = await fetch(`${basePath}/api/folders`);
       const data = await res.json();
       setFolders(data.folders || []);
     } catch (err) {
@@ -40,7 +42,7 @@ export default function Home() {
     setAdding(true);
 
     try {
-      const res = await fetch('/api/folders', {
+      const res = await fetch(`${basePath}/api/folders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: newPath }),
@@ -64,7 +66,7 @@ export default function Home() {
 
   const removeFolder = async (path: string) => {
     try {
-      const res = await fetch('/api/folders', {
+      const res = await fetch(`${basePath}/api/folders`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
@@ -83,7 +85,7 @@ export default function Home() {
   };
 
   const openFolder = (path: string) => {
-    window.location.href = `/logs?path=${encodeURIComponent(path)}`;
+    window.location.href = `${basePath}/logs?path=${encodeURIComponent(path)}`;
   };
 
   if (loading) {
