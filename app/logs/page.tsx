@@ -1,0 +1,357 @@
+'use client';
+
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import path from 'path';
+import { ArrowLeft, FileText, RefreshCw, Clock, Monitor, HardDrive, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface FileInfo {
+  name: string;
+  size: number;
+  modified: Date;
+}
+
+function LogsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const folderPath = searchParams.get('path') || '';
+  
+  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [selectedFile, setSelectedFile] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [content, setContent] = useState('');
+  const [refreshInterval, setRefreshInterval] = useState(10);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [error, setError] = useState('');
+  const [isScrolling, setIsScrolling] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    loadFiles();
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [folderPath]);
+
+  useEffect(() => {
+    if (selectedFile && refreshInterval > 0) {
+      loadContent();
+      
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      
+      intervalRef.current = setInterval(() => {
+        loadContent();
+      }, refreshInterval * 1000);
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [selectedFile, refreshInterval]);
+
+  useEffect(() => {
+    if (lastUpdateTime) {
+      setElapsedTime(0);
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+
+      timerRef.current = setInterval(() => {
+        setElapsedTime((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [lastUpdateTime]);
+
+  const loadFiles = async () => {
+    try {
+      const res = await fetch(`/api/files?path=${encodeURIComponent(folderPath)}`);
+      const data = await res.json();
+      setFiles(data.files || []);
+    } catch (err) {
+      setError('Failed to load files');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadContent = async () => {
+    if (!selectedFile) return;
+
+    try {
+      const res = await fetch(`/api/logs?path=${encodeURIComponent(path.join(folderPath, selectedFile))}`);
+      const data = await res.json();
+      
+      if (data.content !== content) {
+        const wasEmpty = !content;
+        setContent(data.content);
+        setLastUpdateTime(new Date());
+        
+        if (wasEmpty || !isScrolling) {
+          setTimeout(() => {
+            if (scrollAreaRef.current) {
+              scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+            }
+          }, 100);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load content');
+    }
+  };
+
+  const goBack = () => {
+    router.push('/');
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const formatTimeAgo = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}秒前`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟前`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}小时前`;
+    return `${Math.floor(seconds / 86400)}天前`;
+  };
+
+  const handleScroll = () => {
+    setIsScrolling(true);
+    
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsScrolling(false);
+    }, 2000);
+  };
+
+  if (!folderPath) {
+    router.push('/');
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+      <div className="bg-white border-b shadow-sm">
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goBack}
+              className="shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+                日志文件查看
+              </h1>
+              <div className="text-sm text-gray-500 font-mono truncate mt-1">
+                {folderPath}
+              </div>
+            </div>
+            {selectedFile && lastUpdateTime && (
+              <Badge variant="secondary" className="hidden md:flex items-center gap-2 shrink-0">
+                <Clock className="w-4 h-4" />
+                {formatTimeAgo(elapsedTime)}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="px-4 py-4">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
+            <span>⚠️</span>
+            {error}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col w-full px-4 py-4">
+        <div className="flex-1 flex gap-4">
+          <div className="bg-white rounded-lg shadow-md flex flex-col overflow-hidden" style={{ width: '20%', height: 'calc(100vh - 250px)' }}>
+            <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Monitor className="w-5 h-5 text-gray-600" />
+                <h2 className="font-semibold text-gray-900">文件列表</h2>
+              </div>
+              <Badge variant="secondary">{files.length} 个文件</Badge>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-2">
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    加载中...
+                  </div>
+                ) : files.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    未找到 .log 或 .txt 文件
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {files.map((file) => (
+                      <div
+                        key={file.name}
+                        className={`p-3 rounded-lg cursor-pointer transition-all ${
+                          selectedFile === file.name
+                            ? 'bg-blue-50 border-2 border-blue-500 shadow-sm'
+                            : 'border border-gray-200 hover:border-blue-400 hover:bg-gray-50'
+                        }`}
+                        onClick={() => setSelectedFile(file.name)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FileText
+                            size={18}
+                            className={`shrink-0 ${selectedFile === file.name ? 'text-blue-600' : 'text-gray-400'}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate text-sm">{file.name}</div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                              <div className="flex items-center gap-1">
+                                <HardDrive className="w-3 h-3" />
+                                {formatFileSize(file.size)}
+                              </div>
+                              <span>·</span>
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(file.modified).toLocaleString('zh-CN', {
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md flex flex-col overflow-hidden" style={{ width: '80%', height: 'calc(100vh - 250px)' }}>
+            <div className="p-4 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-5 h-5 text-gray-600" />
+                <h2 className="font-semibold text-gray-900 truncate">
+                  {selectedFile || '请选择文件'}
+                </h2>
+              </div>
+
+              {selectedFile && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {lastUpdateTime && (
+                      <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatTimeAgo(elapsedTime)}
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3" />
+                      {refreshInterval === 0 ? '手动' : `${refreshInterval}秒`}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600 whitespace-nowrap">刷新间隔:</label>
+                    <Select
+                      value={refreshInterval.toString()}
+                      onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                      className="w-24"
+                    >
+                      <option value={1}>1秒</option>
+                      <option value={2}>2秒</option>
+                      <option value={5}>5秒</option>
+                      <option value={10}>10秒</option>
+                      <option value={30}>30秒</option>
+                      <option value={0}>手动</option>
+                    </Select>
+
+                    {refreshInterval === 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={loadContent}
+                        className="flex items-center gap-1"
+                      >
+                        <RefreshCw size={16} />
+                        刷新
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <ScrollArea
+              ref={scrollAreaRef}
+              className="flex-1"
+              onScroll={handleScroll}
+            >
+              <div className="bg-gray-900 min-h-full p-4">
+                <pre className="text-green-400 text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                  {content || (selectedFile ? '加载中...' : '请从左侧选择一个文件')}
+                </pre>
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LogsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="text-gray-600">加载中...</div>
+        </div>
+      </div>
+    }>
+      <LogsContent />
+    </Suspense>
+  );
+}
