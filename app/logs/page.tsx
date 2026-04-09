@@ -26,7 +26,7 @@ function LogsContent() {
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(10);
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [lastFileModifyTime, setLastFileModifyTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [error, setError] = useState('');
   const [isScrolling, setIsScrolling] = useState(false);
@@ -68,16 +68,25 @@ function LogsContent() {
   }, [selectedFile, refreshInterval]);
 
   useEffect(() => {
-    if (lastUpdateTime) {
-      setElapsedTime(0);
+    if (selectedFile && files.length > 0) {
+      const file = files.find(f => f.name === selectedFile);
+      if (file) {
+        setLastFileModifyTime(new Date(file.modified));
+        setElapsedTime(0);
+      }
+    }
+  }, [selectedFile, files]);
 
+  useEffect(() => {
+    if (lastFileModifyTime && refreshInterval > 0) {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
 
       timerRef.current = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
-      }, 1000);
+        const elapsed = Math.floor((new Date().getTime() - lastFileModifyTime.getTime()) / 1000);
+        setElapsedTime(elapsed);
+      }, refreshInterval * 1000);
     }
 
     return () => {
@@ -85,7 +94,7 @@ function LogsContent() {
         clearInterval(timerRef.current);
       }
     };
-  }, [lastUpdateTime]);
+  }, [lastFileModifyTime, refreshInterval]);
 
   const loadFiles = async () => {
     try {
@@ -106,10 +115,15 @@ function LogsContent() {
       const res = await fetch(`/api/logs?path=${encodeURIComponent(path.join(folderPath, selectedFile))}`);
       const data = await res.json();
       
+      const file = files.find(f => f.name === selectedFile);
+      
       if (data.content !== content) {
         const wasEmpty = !content;
         setContent(data.content);
-        setLastUpdateTime(new Date());
+        if (file) {
+          setLastFileModifyTime(new Date(file.modified));
+        }
+        setElapsedTime(0);
         
         if (wasEmpty || !isScrolling) {
           setTimeout(() => {
@@ -137,10 +151,10 @@ function LogsContent() {
   };
 
   const formatTimeAgo = (seconds: number): string => {
-    if (seconds < 60) return `${seconds}秒前`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟前`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}小时前`;
-    return `${Math.floor(seconds / 86400)}天前`;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours} 小时 ${minutes} 分钟 ${secs} 秒`;
   };
 
   const handleScroll = () => {
@@ -181,12 +195,6 @@ function LogsContent() {
                 {folderPath}
               </div>
             </div>
-            {selectedFile && lastUpdateTime && (
-              <Badge variant="secondary" className="hidden md:flex items-center gap-2 shrink-0">
-                <Clock className="w-4 h-4" />
-                {formatTimeAgo(elapsedTime)}
-              </Badge>
-            )}
           </div>
         </div>
       </div>
@@ -280,7 +288,7 @@ function LogsContent() {
               {selectedFile && (
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
-                    {lastUpdateTime && (
+                    {lastFileModifyTime && (
                       <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {formatTimeAgo(elapsedTime)}
