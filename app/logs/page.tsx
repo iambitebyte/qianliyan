@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 
 interface FileInfo {
   name: string;
@@ -30,6 +31,7 @@ function LogsContent() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [error, setError] = useState('');
   const [isScrolling, setIsScrolling] = useState(false);
+  const [filterText, setFilterText] = useState('');
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -286,7 +288,7 @@ function LogsContent() {
               </div>
 
               {selectedFile && (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     {lastFileModifyTime && (
                       <Badge variant="secondary" className="hidden sm:flex items-center gap-1">
@@ -299,6 +301,14 @@ function LogsContent() {
                       {refreshInterval === 0 ? '手动' : `${refreshInterval}秒`}
                     </Badge>
                   </div>
+
+                  <Input
+                    type="text"
+                    placeholder="输入文本过滤内容..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="w-48"
+                  />
 
                   <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-600 whitespace-nowrap">刷新间隔:</label>
@@ -338,7 +348,16 @@ function LogsContent() {
             >
               <div className="bg-gray-900 min-h-full p-4">
                 <pre className="text-green-400 text-sm whitespace-pre-wrap font-mono leading-relaxed">
-                  {content || (selectedFile ? '加载中...' : '请从左侧选择一个文件')}
+                  {content ? (
+                    filterText ? (
+                      content
+                        .split('\n')
+                        .filter(line => line.includes(filterText))
+                        .join('\n') || '未找到匹配内容'
+                    ) : content
+                  ) : (
+                    selectedFile ? '加载中...' : '请从左侧选择一个文件'
+                  )}
                 </pre>
               </div>
             </ScrollArea>
