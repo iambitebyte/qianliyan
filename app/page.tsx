@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FolderPlus, Folder, Trash2, ExternalLink, FolderOpen, ShieldCheck, Copy, Check, Pencil } from 'lucide-react';
+import { FolderPlus, Folder, Trash2, ExternalLink, FolderOpen, ShieldCheck, Copy, Check, Pencil, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getBasePath } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
+import { ProtectedRoute } from '@/components/protected-route';
 
 interface FolderInfo {
   path: string;
@@ -26,6 +28,7 @@ export default function Home() {
   const [labels, setLabels] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState('');
   const basePath = getBasePath();
+  const { logout } = useAuth();
 
   const tagColors: { [key: string]: string } = {};
   const colorPalette = [
@@ -178,16 +181,28 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <header className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 z-40 px-4 md:px-8 py-3 shadow-sm">
-        <div className="w-full max-w-4xl mx-auto flex items-center gap-4">
-          <div className="bg-blue-600 rounded-lg p-2">
-            <ShieldCheck className="w-8 h-8 text-white" />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <header className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 z-40 px-4 md:px-8 py-3 shadow-sm">
+          <div className="w-full max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-600 rounded-lg p-2">
+                <ShieldCheck className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Qianliyan</h1>
+              <p className="text-sm text-gray-600 hidden md:block">实时日志监控工具</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">退出</span>
+            </Button>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Qianliyan</h1>
-          <p className="text-sm text-gray-600 hidden md:block">实时日志监控工具</p>
-        </div>
-      </header>
+        </header>
 
       <main className="pt-20 px-4 md:px-8 pb-8">
         <div className="w-full max-w-4xl mx-auto">
@@ -428,8 +443,9 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        )}
-    </div>
+           </div>
+         )}
+      </div>
+    </ProtectedRoute>
   );
 }

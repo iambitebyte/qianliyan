@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import path from 'path';
-import { ArrowLeft, FileText, RefreshCw, Clock, Monitor, HardDrive, Calendar } from 'lucide-react';
+import { ArrowLeft, FileText, RefreshCw, Clock, Monitor, HardDrive, Calendar, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { getBasePath } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
+import { ProtectedRoute } from '@/components/protected-route';
 
 interface FileInfo {
   name: string;
@@ -23,6 +25,7 @@ function LogsContent() {
   const router = useRouter();
   const folderPath = searchParams.get('path') || '';
   const basePath = getBasePath();
+  const { logout } = useAuth();
   
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
@@ -179,7 +182,8 @@ function LogsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
       <div className="bg-white border-b shadow-sm">
         <div className="px-4 py-4">
           <div className="flex items-center gap-4">
@@ -199,6 +203,15 @@ function LogsContent() {
                 {folderPath}
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={logout}
+              className="shrink-0"
+              title="退出"
+            >
+              <LogOut className="w-5 h-5" />
+            </Button>
           </div>
         </div>
       </div>
@@ -366,7 +379,8 @@ function LogsContent() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
 
