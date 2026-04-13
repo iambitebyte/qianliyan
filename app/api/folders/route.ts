@@ -34,10 +34,19 @@ export async function POST(request: NextRequest) {
   await ensureFoldersFile();
   
   try {
-    const { path: folderPath } = await request.json();
+    const { path: folderPath, labels = [] } = await request.json();
     
     if (!folderPath) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 });
+    }
+
+    try {
+      const stats = await fs.stat(folderPath);
+      if (!stats.isDirectory()) {
+        return NextResponse.json({ error: 'Path is not a directory' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'Folder does not exist' }, { status: 400 });
     }
 
     const folderName = folderPath.split(path.sep).pop() || folderPath;
@@ -51,7 +60,8 @@ export async function POST(request: NextRequest) {
 
     folders.push({
       path: folderPath,
-      name: folderName
+      name: folderName,
+      labels: Array.isArray(labels) ? labels.slice(0, 5) : []
     });
 
     await fs.writeFile(FOLDERS_FILE, JSON.stringify({ folders }, null, 2));
@@ -59,6 +69,54 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ folders });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to add folder' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  await ensureFoldersFile();
+  
+  try {
+    const { path: newPath, oldPath, labels = [] } = await request.json();
+    
+    if (!newPath || !oldPath) {
+      return NextResponse.json({ error: 'Path and oldPath are required' }, { status: 400 });
+    }
+
+    try {
+      const stats = await fs.stat(newPath);
+      if (!stats.isDirectory()) {
+        return NextResponse.json({ error: 'Path is not a directory' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'Folder does not exist' }, { status: 400 });
+    }
+
+    const data = await fs.readFile(FOLDERS_FILE, 'utf-8');
+    let folders = JSON.parse(data).folders || [];
+    
+    const folderIndex = folders.findIndex((f: any) => f.path === oldPath);
+    
+    if (folderIndex === -1) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    }
+
+    if (newPath !== oldPath && folders.some((f: any) => f.path === newPath)) {
+      return NextResponse.json({ error: 'Folder already exists' }, { status: 400 });
+    }
+
+    const folderName = newPath.split(path.sep).pop() || newPath;
+    
+    folders[folderIndex] = {
+      path: newPath,
+      name: folderName,
+      labels: Array.isArray(labels) ? labels.slice(0, 5) : []
+    };
+
+    await fs.writeFile(FOLDERS_FILE, JSON.stringify({ folders }, null, 2));
+
+    return NextResponse.json({ folders });
+  } catch (err) {
+    return NextResponse.json({ error: 'Failed to update folder' }, { status: 500 });
   }
 }
 
