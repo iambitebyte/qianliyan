@@ -37,6 +37,8 @@ function LogsContent() {
   const [error, setError] = useState('');
   const [isScrolling, setIsScrolling] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [lineCount, setLineCount] = useState(0);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -56,6 +58,7 @@ function LogsContent() {
 
   useEffect(() => {
     if (selectedFile && refreshInterval > 0) {
+      setIsFirstLoad(true);
       loadContent();
       
       if (intervalRef.current) {
@@ -119,20 +122,38 @@ function LogsContent() {
     if (!selectedFile) return;
 
     try {
-      const res = await fetch(`${basePath}/api/logs?path=${encodeURIComponent(path.join(folderPath, selectedFile))}`);
+      const url = new URL(`${basePath}/api/logs`, window.location.origin);
+      url.searchParams.append('path', path.join(folderPath, selectedFile));
+      
+      if (!isFirstLoad && lineCount > 0) {
+        url.searchParams.append('fromLine', lineCount.toString());
+      }
+      
+      const res = await fetch(url.toString());
       const data = await res.json();
       
       const file = files.find(f => f.name === selectedFile);
       
-      if (data.content !== content) {
-        const wasEmpty = !content;
+      if (isFirstLoad) {
         setContent(data.content);
+        setLineCount(data.totalLines);
         if (file) {
           setLastFileModifyTime(new Date(file.modified));
         }
         setElapsedTime(0);
         
-        if (wasEmpty || !isScrolling) {
+        setTimeout(() => {
+          if (scrollAreaRef.current) {
+            scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+          }
+        }, 100);
+        
+        setIsFirstLoad(false);
+      } else if (data.content) {
+        setContent(prev => prev + '\n' + data.content);
+        setLineCount(data.totalLines);
+        
+        if (!isScrolling) {
           setTimeout(() => {
             if (scrollAreaRef.current) {
               scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -300,6 +321,11 @@ function LogsContent() {
                 <h2 className="font-semibold text-gray-900 truncate">
                   {selectedFile || '请选择文件'}
                 </h2>
+                {content && (
+                  <span className="text-xs text-gray-500 shrink-0">
+                    {lineCount} 行
+                  </span>
+                )}
               </div>
 
               {selectedFile && (
@@ -367,9 +393,33 @@ function LogsContent() {
                     filterText ? (
                       content
                         .split('\n')
-                        .filter(line => line.includes(filterText))
-                        .join('\n') || '未找到匹配内容'
-                    ) : content
+                        .filter((line, index) => {
+                          if (!line.includes(filterText)) return false;
+                          return true;
+                        })
+                        .map((line, index) => (
+                          <div key={index} className="flex hover:bg-gray-800/50">
+                            <span className="text-gray-500 select-none pr-6 text-right min-w-[3rem]">
+                              {index + 1}
+                            </span>
+                            <span className={`flex-1 ${/error/i.test(line) ? 'text-red-400' : ''}`}>{line}</span>
+                          </div>
+                        )) || <div className="text-gray-400">未找到匹配内容</div>
+                    ) : (
+                      content
+                        .split('\n')
+                        .map((line, index) => {
+                          const lineNumber = lineCount - content.split('\n').length + index + 1;
+                          return (
+                            <div key={index} className="flex hover:bg-gray-800/50">
+                              <span className="text-gray-500 select-none pr-6 text-right min-w-[3rem]">
+                                {lineNumber}
+                              </span>
+                              <span className={`flex-1 ${/error/i.test(line) ? 'text-red-400' : ''}`}>{line}</span>
+                            </div>
+                          );
+                        })
+                    )
                   ) : (
                     selectedFile ? '加载中...' : '请从左侧选择一个文件'
                   )}
