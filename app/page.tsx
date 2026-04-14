@@ -184,7 +184,7 @@ export default function Home() {
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <header className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-b border-gray-200 z-40 px-4 md:px-8 py-3 shadow-sm">
-          <div className="w-full max-w-4xl mx-auto flex items-center justify-between">
+          <div className="w-full max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="bg-blue-600 rounded-lg p-2">
                 <ShieldCheck className="w-8 h-8 text-white" />
@@ -205,7 +205,7 @@ export default function Home() {
         </header>
 
       <main className="pt-20 px-4 md:px-8 pb-8">
-        <div className="w-full max-w-4xl mx-auto">
+        <div className="w-full max-w-6xl mx-auto">
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center justify-center gap-2">
               <span>⚠️</span>
