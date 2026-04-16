@@ -31,6 +31,7 @@ function LogsContent() {
   const [selectedFile, setSelectedFile] = useState('');
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
+  const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [content, setContent] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastFileModifyTime, setLastFileModifyTime] = useState<Date | null>(null);
@@ -38,12 +39,15 @@ function LogsContent() {
   const [error, setError] = useState('');
   const [isScrolling, setIsScrolling] = useState(false);
   const [filterText, setFilterText] = useState('');
-  const [lineCount, setLineCount] = useState(0);
+  const [startLine, setStartLine] = useState(0);
+  const [endLine, setEndLine] = useState(0);
+  const [totalLines, setTotalLines] = useState(0);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousScrollHeightRef = useRef<number>(0);
 
   useEffect(() => {
     loadFiles();
@@ -118,7 +122,7 @@ function LogsContent() {
     }
   };
 
-  const loadContent = async (forceFirstLoad = false) => {
+  const loadContent = async (forceFirstLoad = false, loadPrevious = false) => {
     if (!selectedFile) return;
 
     const shouldShowLoading = forceFirstLoad || isFirstLoad;
@@ -127,12 +131,21 @@ function LogsContent() {
       setContentLoading(true);
     }
 
+    if (loadPrevious) {
+      setLoadingPrevious(true);
+    }
+
     try {
       const url = new URL(`${basePath}/api/logs`, window.location.origin);
       url.searchParams.append('path', path.join(folderPath, selectedFile));
+      url.searchParams.append('linesCount', '100');
       
-      if (!forceFirstLoad && !isFirstLoad && lineCount > 0) {
-        url.searchParams.append('fromLine', lineCount.toString());
+      if (loadPrevious && startLine > 0) {
+        url.searchParams.append('fromLine', startLine.toString());
+      } else if (shouldShowLoading || forceFirstLoad) {
+        url.searchParams.append('fromEnd', 'true');
+      } else {
+        url.searchParams.append('fromEnd', 'true');
       }
       
       const res = await fetch(url.toString());
@@ -140,9 +153,20 @@ function LogsContent() {
       
       const file = files.find(f => f.name === selectedFile);
       
-      if (shouldShowLoading) {
+      if (loadPrevious && data.content) {
+        setContent(prev => data.content + '\n' + prev);
+        setStartLine(data.startLine);
+        
+        if (scrollAreaRef.current) {
+          const currentScrollTop = scrollAreaRef.current.scrollTop;
+          const newScrollHeight = scrollAreaRef.current.scrollHeight;
+          scrollAreaRef.current.scrollTop = currentScrollTop + (newScrollHeight - previousScrollHeightRef.current);
+        }
+      } else if (shouldShowLoading) {
         setContent(data.content);
-        setLineCount(data.totalLines);
+        setTotalLines(data.totalLines);
+        setStartLine(data.startLine);
+        setEndLine(data.endLine);
         if (file) {
           setLastFileModifyTime(new Date(file.modified));
         }
@@ -157,7 +181,9 @@ function LogsContent() {
         setIsFirstLoad(false);
       } else if (data.content) {
         setContent(prev => prev + '\n' + data.content);
-        setLineCount(data.totalLines);
+        setTotalLines(data.totalLines);
+        setStartLine(data.startLine);
+        setEndLine(data.endLine);
         
         if (!isScrolling) {
           setTimeout(() => {
@@ -172,6 +198,9 @@ function LogsContent() {
     } finally {
       if (shouldShowLoading) {
         setContentLoading(false);
+      }
+      if (loadPrevious) {
+        setLoadingPrevious(false);
       }
     }
   };
@@ -197,6 +226,15 @@ function LogsContent() {
 
   const handleScroll = () => {
     setIsScrolling(true);
+    
+    if (scrollAreaRef.current) {
+      const { scrollTop, scrollHeight } = scrollAreaRef.current;
+      
+      if (scrollTop === 0 && startLine > 0 && !loadingPrevious) {
+        previousScrollHeightRef.current = scrollHeight;
+        loadContent(false, true);
+      }
+    }
     
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
@@ -333,7 +371,7 @@ function LogsContent() {
                 </h2>
                 {content && (
                   <span className="text-xs text-gray-500 shrink-0">
-                    {lineCount} 行
+                    {totalLines} 行
                   </span>
                 )}
               </div>
@@ -397,7 +435,14 @@ function LogsContent() {
               className="flex-1"
               onScroll={handleScroll}
             >
-              <div className="bg-gray-900 min-h-full p-4">
+              <div className="bg-gray-900 min-h-full">
+                {loadingPrevious && (
+                  <div className="p-4 bg-gray-800 flex items-center justify-center gap-2 border-b border-gray-700">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                    <span className="text-sm text-gray-400">加载更多日志...</span>
+                  </div>
+                )}
+                <div className="p-4">
                 <pre className="text-green-400 text-sm whitespace-pre-wrap font-mono leading-relaxed">
                   {content ? (
                     filterText ? (
@@ -419,7 +464,7 @@ function LogsContent() {
                       content
                         .split('\n')
                         .map((line, index) => {
-                          const lineNumber = lineCount - content.split('\n').length + index + 1;
+                          const lineNumber = startLine + index + 1;
                           return (
                             <div key={index} className="flex hover:bg-gray-800/50">
                               <span className="text-gray-500 select-none pr-6 text-right min-w-[3rem]">
@@ -434,6 +479,7 @@ function LogsContent() {
                     selectedFile ? '加载中...' : '请从左侧选择一个文件'
                   )}
                 </pre>
+                </div>
               </div>
             </ScrollArea>
            </div>
