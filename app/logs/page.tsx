@@ -30,6 +30,7 @@ function LogsContent() {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
   const [loading, setLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(false);
   const [content, setContent] = useState('');
   const [refreshInterval, setRefreshInterval] = useState(10);
   const [lastFileModifyTime, setLastFileModifyTime] = useState<Date | null>(null);
@@ -58,15 +59,14 @@ function LogsContent() {
 
   useEffect(() => {
     if (selectedFile && refreshInterval > 0) {
-      setIsFirstLoad(true);
-      loadContent();
+      loadContent(true);
       
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
       
       intervalRef.current = setInterval(() => {
-        loadContent();
+        loadContent(false);
       }, refreshInterval * 1000);
     }
     
@@ -118,14 +118,20 @@ function LogsContent() {
     }
   };
 
-  const loadContent = async () => {
+  const loadContent = async (forceFirstLoad = false) => {
     if (!selectedFile) return;
+
+    const shouldShowLoading = forceFirstLoad || isFirstLoad;
+
+    if (shouldShowLoading) {
+      setContentLoading(true);
+    }
 
     try {
       const url = new URL(`${basePath}/api/logs`, window.location.origin);
       url.searchParams.append('path', path.join(folderPath, selectedFile));
       
-      if (!isFirstLoad && lineCount > 0) {
+      if (!forceFirstLoad && !isFirstLoad && lineCount > 0) {
         url.searchParams.append('fromLine', lineCount.toString());
       }
       
@@ -134,7 +140,7 @@ function LogsContent() {
       
       const file = files.find(f => f.name === selectedFile);
       
-      if (isFirstLoad) {
+      if (shouldShowLoading) {
         setContent(data.content);
         setLineCount(data.totalLines);
         if (file) {
@@ -163,6 +169,10 @@ function LogsContent() {
       }
     } catch (err) {
       console.error('Failed to load content');
+    } finally {
+      if (shouldShowLoading) {
+        setContentLoading(false);
+      }
     }
   };
 
@@ -248,7 +258,7 @@ function LogsContent() {
 
       <div className="flex-1 flex flex-col w-full px-4 py-4">
         <div className="flex-1 flex gap-4">
-          <div className="bg-white rounded-lg shadow-md flex flex-col overflow-hidden" style={{ width: '20%', height: 'calc(100vh - 250px)' }}>
+           <div className={`bg-white rounded-lg shadow-md flex flex-col overflow-hidden transition-opacity ${contentLoading ? 'opacity-50 pointer-events-none' : ''}`} style={{ width: '20%', height: 'calc(100vh - 250px)' }}>
             <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Monitor className="w-5 h-5 text-gray-600" />
@@ -370,7 +380,7 @@ function LogsContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={loadContent}
+                        onClick={() => loadContent(false)}
                         className="flex items-center gap-1"
                       >
                         <RefreshCw size={16} />
@@ -426,10 +436,19 @@ function LogsContent() {
                 </pre>
               </div>
             </ScrollArea>
+           </div>
+         </div>
+       </div>
+       </div>
+
+      {contentLoading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4 shadow-2xl">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="text-gray-700 font-medium">加载日志文件...</div>
           </div>
         </div>
-      </div>
-      </div>
+      )}
     </ProtectedRoute>
   );
 }
