@@ -5,13 +5,20 @@ ENV_FILE=".env.production"
 
 echo "Reading configuration from $ENV_FILE..."
 PORT=$(grep "^PORT=" "$ENV_FILE" | cut -d '=' -f2)
+LOG_DIR=$(grep "^LOG_DIR=" "$ENV_FILE" | cut -d '=' -f2)
 
 if [ -z "$PORT" ]; then
     echo "Error: PORT not found in $ENV_FILE"
     exit 1
 fi
 
+if [ -z "$LOG_DIR" ]; then
+    echo "Error: LOG_DIR not found in $ENV_FILE"
+    exit 1
+fi
+
 echo "Port: $PORT"
+echo "Log directory: $LOG_DIR"
 echo "Application name: $APP_NAME"
 
 echo ""
@@ -37,8 +44,11 @@ else
 fi
 
 echo ""
+echo "Creating log directory if not exists..."
+mkdir -p "$LOG_DIR"
+
 echo "Starting application with PM2..."
-pm2 start "dotenv -e $ENV_FILE -- next start" --name "$APP_NAME"
+pm2 start ecosystem.config.js
 
 if [ $? -eq 0 ]; then
     echo ""
